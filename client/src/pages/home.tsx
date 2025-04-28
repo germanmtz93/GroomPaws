@@ -6,6 +6,7 @@ import PostPreview from "@/components/post-preview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type InsertGroomPost } from "@shared/schema";
@@ -13,6 +14,7 @@ import { type InsertGroomPost } from "@shared/schema";
 export default function Home() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
   const [dogName, setDogName] = useState<string>("");
@@ -270,7 +272,7 @@ export default function Home() {
           {/* Post Preview */}
           <PostPreview
             dogName={dogName}
-            salonName="Fluffy Friends Grooming"
+            salonName={user?.salonName || user?.fullName || "My Grooming Salon"}
             beforeImageUrl={beforeImageUrl}
             afterImageUrl={afterImageUrl}
             caption={caption}

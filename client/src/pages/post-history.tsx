@@ -4,10 +4,14 @@ import { Button } from "@/components/ui/button";
 import PostCard from "@/components/post-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type GroomPost } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function PostHistory() {
+  const { user } = useAuth();
+  
   const { data: posts, isLoading } = useQuery<GroomPost[]>({
-    queryKey: ['/api/posts'],
+    queryKey: ['/api/user/posts'],
+    enabled: !!user,
   });
 
   return (
