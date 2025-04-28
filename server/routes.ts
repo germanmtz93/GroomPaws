@@ -66,6 +66,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Error fetching posts" });
     }
   });
+  
+  // Get posts for the logged in user
+  app.get("/api/user/posts", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const posts = await storage.getUserGroomPosts(userId);
+      res.json(posts);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching user posts" });
+    }
+  });
 
   // Get a single groom post
   app.get("/api/posts/:id", async (req, res) => {
@@ -154,19 +165,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update a groom post
-  app.patch("/api/posts/:id", async (req, res) => {
+  app.patch("/api/posts/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid ID format" });
       }
+      
+      // Get the existing post
+      const existingPost = await storage.getGroomPost(id);
+      if (!existingPost) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+      
+      // Check if the post belongs to the authenticated user
+      const userId = (req.user as User).id;
+      if (existingPost.userId !== userId) {
+        return res.status(403).json({ message: "You do not have permission to modify this post" });
+      }
 
       const validData = updateGroomPostSchema.parse(req.body);
       const post = await storage.updateGroomPost(id, validData);
-      
-      if (!post) {
-        return res.status(404).json({ message: "Post not found" });
-      }
 
       res.json(post);
     } catch (error) {
@@ -179,11 +198,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete a groom post
-  app.delete("/api/posts/:id", async (req, res) => {
+  app.delete("/api/posts/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid ID format" });
+      }
+
+      // Get the existing post
+      const existingPost = await storage.getGroomPost(id);
+      if (!existingPost) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+      
+      // Check if the post belongs to the authenticated user
+      const userId = (req.user as User).id;
+      if (existingPost.userId !== userId) {
+        return res.status(403).json({ message: "You do not have permission to delete this post" });
       }
 
       const success = await storage.deleteGroomPost(id);
@@ -198,7 +229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Post to Instagram
-  app.post("/api/posts/:id/instagram", async (req, res) => {
+  app.post("/api/posts/:id/instagram", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -208,6 +239,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const post = await storage.getGroomPost(id);
       if (!post) {
         return res.status(404).json({ message: "Post not found" });
+      }
+      
+      // Check if the post belongs to the authenticated user
+      const userId = (req.user as User).id;
+      if (post.userId !== userId) {
+        return res.status(403).json({ message: "You do not have permission to publish this post" });
       }
 
       // Check if Instagram service is initialized
