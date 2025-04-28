@@ -1,9 +1,6 @@
 import FB from 'facebook-node-sdk';
-import fs from 'fs';
 import { GroomPost } from '@shared/schema';
-import { log } from '../vite';
 
-// Interface for Instagram post response
 interface InstagramPostResponse {
   id: string;
   permalink?: string;
@@ -11,6 +8,9 @@ interface InstagramPostResponse {
   error?: string;
 }
 
+/**
+ * Service for integrating with Instagram API via Facebook Graph API
+ */
 class InstagramService {
   private fb: FB;
   private initialized: boolean = false;
@@ -18,22 +18,31 @@ class InstagramService {
   private pageId: string | null = null;
 
   constructor() {
+    // Initialize with placeholder values if environment variables are not set
+    // These will be replaced with actual values when init() is called
     const appId = process.env.FACEBOOK_APP_ID || 'placeholder_app_id';
     const appSecret = process.env.FACEBOOK_APP_SECRET || 'placeholder_app_secret';
     
     this.fb = new FB({
       appId,
       appSecret,
-      version: 'v18.0' // Using the latest stable version as of 2025
+      version: 'v19.0' // Use the latest stable version
     });
     
-    // Set the access token
-    const accessToken = process.env.INSTAGRAM_LONG_LIVED_ACCESS_TOKEN;
-    if (accessToken) {
-      this.fb.setAccessToken(accessToken);
-      this.initialized = true;
+    // Set access token if available
+    if (process.env.INSTAGRAM_LONG_LIVED_ACCESS_TOKEN) {
+      this.fb.setAccessToken(process.env.INSTAGRAM_LONG_LIVED_ACCESS_TOKEN);
+      this.init().then(success => {
+        if (success) {
+          console.log('[instagram] Instagram service initialized successfully');
+        } else {
+          console.log('[instagram] Instagram service initialized with placeholder credentials');
+        }
+      }).catch(err => {
+        console.error('[instagram] Error initializing Instagram service:', err.message);
+      });
     } else {
-      log('Instagram service initialized with placeholder credentials', 'instagram');
+      console.log('[instagram] Instagram service initialized with placeholder credentials');
     }
   }
 
@@ -41,37 +50,36 @@ class InstagramService {
    * Initialize the Instagram service by fetching the connected Instagram account
    */
   async init(): Promise<boolean> {
-    if (!this.initialized) {
-      log('Instagram service not initialized: Missing credentials', 'instagram');
+    if (!process.env.INSTAGRAM_LONG_LIVED_ACCESS_TOKEN || 
+        !process.env.FACEBOOK_APP_ID || 
+        !process.env.FACEBOOK_APP_SECRET) {
       return false;
     }
 
     try {
-      // First, get the user's pages
-      const pagesResponse = await this.fbApiPromise('/me/accounts');
+      // First get the page ID
+      const meResponse = await this.fbApiPromise('/me/accounts');
       
-      if (!pagesResponse.data || pagesResponse.data.length === 0) {
-        log('No Facebook pages found for this user', 'instagram');
+      if (!meResponse.data || meResponse.data.length === 0) {
+        console.error('[instagram] No Facebook pages found for this user');
         return false;
       }
       
-      // Use the first page for simplicity (can be enhanced to allow selection)
-      this.pageId = pagesResponse.data[0].id;
+      this.pageId = meResponse.data[0].id;
       
-      // Now get the Instagram Business Account connected to this page
+      // Get the Instagram business account ID connected to this page
       const instagramResponse = await this.fbApiPromise(`/${this.pageId}?fields=instagram_business_account`);
       
       if (!instagramResponse.instagram_business_account) {
-        log('No Instagram Business Account connected to the Facebook page', 'instagram');
+        console.error('[instagram] No Instagram business account found for this page');
         return false;
       }
       
       this.instagramAccountId = instagramResponse.instagram_business_account.id;
-      log(`Instagram service initialized with account ID: ${this.instagramAccountId}`, 'instagram');
-      
+      this.initialized = true;
       return true;
     } catch (error) {
-      log(`Failed to initialize Instagram service: ${(error as Error).message}`, 'instagram');
+      console.error('[instagram] Error during initialization:', error);
       return false;
     }
   }
@@ -80,69 +88,95 @@ class InstagramService {
    * Post content to Instagram
    */
   async postToInstagram(post: GroomPost): Promise<InstagramPostResponse> {
-    if (!this.initialized) {
+    if (!this.initialized || !this.instagramAccountId) {
       return {
         id: '',
         success: false,
-        error: 'Instagram service not initialized: Missing credentials'
+        error: 'Instagram service not properly initialized'
       };
     }
-    
-    // Ensure we have the Instagram account ID
-    if (!this.instagramAccountId) {
-      const initialized = await this.init();
-      if (!initialized) {
-        return {
-          id: '',
-          success: false,
-          error: 'Failed to initialize Instagram service'
-        };
-      }
-    }
-    
+
     try {
-      // Create a container for the post
-      const containerResponse = await this.fbApiPromise(`/${this.instagramAccountId}/media`, 'POST', {
-        image_url: post.afterImageUrl, // Use the "after" image as the main image
-        caption: post.caption,
-        access_token: this.fb.getAccessToken()
-      });
+      // First create a container for the carousel
+      const carouselResponse = await this.fbApiPromise(
+        `/${this.instagramAccountId}/media`, 
+        'POST',
+        {
+          caption: post.caption + (post.tags ? `\n\n${post.tags}` : ''),
+          media_type: 'CAROUSEL',
+        }
+      );
       
-      if (!containerResponse.id) {
-        return {
-          id: '',
-          success: false,
-          error: 'Failed to create Instagram container'
-        };
+      if (!carouselResponse.id) {
+        throw new Error('Failed to create carousel container');
       }
       
-      // Publish the container
-      const publishResponse = await this.fbApiPromise(`/${this.instagramAccountId}/media_publish`, 'POST', {
-        creation_id: containerResponse.id,
-        access_token: this.fb.getAccessToken()
-      });
+      // Then add the before image to the carousel
+      const beforeImageResponse = await this.fbApiPromise(
+        `/${this.instagramAccountId}/media`, 
+        'POST',
+        {
+          image_url: post.beforeImageUrl,
+          is_carousel_item: true,
+        }
+      );
+      
+      if (!beforeImageResponse.id) {
+        throw new Error('Failed to add before image to carousel');
+      }
+      
+      // Add the after image to the carousel
+      const afterImageResponse = await this.fbApiPromise(
+        `/${this.instagramAccountId}/media`, 
+        'POST',
+        {
+          image_url: post.afterImageUrl,
+          is_carousel_item: true,
+        }
+      );
+      
+      if (!afterImageResponse.id) {
+        throw new Error('Failed to add after image to carousel');
+      }
+      
+      // Update the carousel with the child images
+      await this.fbApiPromise(
+        `/${carouselResponse.id}`, 
+        'POST',
+        {
+          children: `${beforeImageResponse.id},${afterImageResponse.id}`
+        }
+      );
+      
+      // Publish the carousel
+      const publishResponse = await this.fbApiPromise(
+        `/${this.instagramAccountId}/media_publish`, 
+        'POST',
+        {
+          creation_id: carouselResponse.id
+        }
+      );
       
       if (!publishResponse.id) {
-        return {
-          id: '',
-          success: false,
-          error: 'Failed to publish to Instagram'
-        };
+        throw new Error('Failed to publish carousel to Instagram');
       }
       
-      // Get the permalink
-      const mediaResponse = await this.fbApiPromise(`/${publishResponse.id}?fields=permalink`);
+      // Get the permalink to the post
+      const mediaResponse = await this.fbApiPromise(
+        `/${publishResponse.id}?fields=permalink`
+      );
       
       return {
         id: publishResponse.id,
         permalink: mediaResponse.permalink,
         success: true
       };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[instagram] Error posting to Instagram:', error);
       return {
         id: '',
         success: false,
-        error: `Failed to post to Instagram: ${(error as Error).message}`
+        error: error.message
       };
     }
   }
@@ -166,9 +200,8 @@ class InstagramService {
    * Check if the service is properly initialized
    */
   isInitialized(): boolean {
-    return this.initialized;
+    return this.initialized && !!this.instagramAccountId;
   }
 }
 
-// Export as a singleton
 export const instagramService = new InstagramService();

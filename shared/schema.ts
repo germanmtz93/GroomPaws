@@ -30,6 +30,8 @@ export const groomPosts = pgTable("groom_posts", {
   userId: integer("user_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   instagramUrl: text("instagram_url"),
+  instagramPostId: text("instagram_post_id"),
+  instagramPermalink: text("instagram_permalink"),
   status: text("status").default("draft").notNull(), // draft, published
 });
 

@@ -53,11 +53,72 @@ export default function PostCard({ post }: PostCardProps) {
     });
   };
 
+  const instagramShareMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/posts/${post.id}/instagram`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
+      
+      if (data.instagramPermalink) {
+        toast({
+          title: "Posted to Instagram!",
+          description: (
+            <div>
+              Your post is now live on Instagram.{" "}
+              <a 
+                href={data.instagramPermalink} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="underline text-primary"
+              >
+                View on Instagram
+              </a>
+            </div>
+          ),
+        });
+      } else {
+        toast({
+          title: "Posted to Instagram!",
+          description: "Your post has been published to Instagram successfully.",
+        });
+      }
+    },
+    onError: (error: any) => {
+      if (error.message && error.message.includes('Instagram integration not configured')) {
+        toast({
+          title: "Instagram credentials needed",
+          description: "Please provide your Instagram API credentials in the environment settings.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to post to Instagram. Please try again.",
+          variant: "destructive",
+        });
+      }
+    }
+  });
+
   const handleInstagramShare = () => {
-    toast({
-      title: "Instagram Integration",
-      description: "Direct posting to Instagram will be available in a future update.",
-    });
+    if (post.instagramPostId) {
+      // If already posted, show the permalink
+      if (post.instagramPermalink) {
+        window.open(post.instagramPermalink, '_blank');
+      } else {
+        toast({
+          title: "Already posted",
+          description: "This post has already been published to Instagram.",
+        });
+      }
+    } else {
+      // Confirm before posting
+      if (window.confirm("Are you sure you want to post this to Instagram?")) {
+        instagramShareMutation.mutate();
+      }
+    }
   };
 
   return (
