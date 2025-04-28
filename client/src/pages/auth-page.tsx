@@ -32,31 +32,9 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState<string>("login");
-  const { user, loginMutation, registerMutation, isLoading } = useAuth();
+  const { user, loginMutation, registerMutation, guestLoginMutation, isLoading } = useAuth();
   const { toast } = useToast();
   const [_, setLocation] = useLocation();
-  
-  // Guest login mutation
-  const guestLoginMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/guest-login");
-      return response.json();
-    },
-    onSuccess: (data) => {
-      toast({
-        title: "Guest login successful",
-        description: "You're now logged in as a guest user",
-      });
-      setLocation("/");
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Guest login failed",
-        description: error.message || "Unable to log in as guest",
-        variant: "destructive",
-      });
-    },
-  });
 
   // Login form
   const loginForm = useForm<LoginFormValues>({

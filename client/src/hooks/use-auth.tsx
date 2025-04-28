@@ -15,6 +15,7 @@ type AuthContextType = {
   loginMutation: UseMutationResult<User, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
   registerMutation: UseMutationResult<User, Error, InsertUser>;
+  guestLoginMutation: UseMutationResult<User, Error, void>;
 };
 
 type LoginData = {
@@ -84,6 +85,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     },
   });
+  
+  const guestLoginMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/guest-login");
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        return response.json();
+      } else {
+        throw new Error("Invalid response from server");
+      }
+    },
+    onSuccess: (user: User) => {
+      queryClient.setQueryData(["/api/user"], user);
+      toast({
+        title: "Guest login successful",
+        description: "You're now logged in as a guest user",
+      });
+      
+      // Redirect to home page after successful login
+      window.location.href = "/";
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Guest login failed",
+        description: error.message || "Unable to log in as guest",
+        variant: "destructive",
+      });
+    },
+  });
 
   return (
     <AuthContext.Provider
@@ -94,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginMutation,
         logoutMutation,
         registerMutation,
+        guestLoginMutation,
       }}
     >
       {children}

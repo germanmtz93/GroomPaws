@@ -186,10 +186,12 @@ export function setupAuth(app: Express) {
         
         // Remove password from response
         const { password, ...userWithoutPassword } = guestUser;
-        return res.json(userWithoutPassword);
+        res.setHeader('Content-Type', 'application/json');
+        return res.send(JSON.stringify(userWithoutPassword));
       });
     } catch (error) {
-      res.status(500).json({ message: "Error logging in as guest" });
+      res.setHeader('Content-Type', 'application/json');
+      res.status(500).send(JSON.stringify({ message: "Error logging in as guest" }));
     }
   });
 
