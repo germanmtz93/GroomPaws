@@ -44,6 +44,10 @@ export function setupAuth(app: Express) {
       secure: process.env.NODE_ENV === "production",
     },
   };
+  
+  // Guest user credentials
+  const GUEST_USERNAME = "guest";
+  const GUEST_PASSWORD = "guest123";
 
   app.use(session(sessionSettings));
   app.use(passport.initialize());
@@ -153,6 +157,39 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: validationError.message });
       }
       next(error);
+    }
+  });
+
+  // Guest login endpoint
+  app.post("/api/guest-login", async (req, res) => {
+    try {
+      // Check if guest user exists
+      let guestUser = await storage.getUserByUsername(GUEST_USERNAME);
+      
+      // Create guest user if it doesn't exist
+      if (!guestUser) {
+        const hashedPassword = await hashPassword(GUEST_PASSWORD);
+        guestUser = await storage.createUser({
+          username: GUEST_USERNAME,
+          password: hashedPassword,
+          email: "guest@example.com",
+          fullName: "Guest User",
+          salonName: "Demo Grooming Salon",
+        });
+      }
+      
+      // Log in as guest
+      req.login(guestUser, (err) => {
+        if (err) {
+          return res.status(500).json({ message: "Error logging in as guest" });
+        }
+        
+        // Remove password from response
+        const { password, ...userWithoutPassword } = guestUser;
+        return res.json(userWithoutPassword);
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Error logging in as guest" });
     }
   });
 

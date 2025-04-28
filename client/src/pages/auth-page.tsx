@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
 
 // Form schemas
 const loginSchema = z.object({
@@ -33,6 +35,28 @@ export default function AuthPage() {
   const { user, loginMutation, registerMutation, isLoading } = useAuth();
   const { toast } = useToast();
   const [_, setLocation] = useLocation();
+  
+  // Guest login mutation
+  const guestLoginMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/guest-login");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Guest login successful",
+        description: "You're now logged in as a guest user",
+      });
+      setLocation("/");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Guest login failed",
+        description: error.message || "Unable to log in as guest",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Login form
   const loginForm = useForm<LoginFormValues>({
@@ -159,6 +183,30 @@ export default function AuthPage() {
                     ) : null}
                     Log In
                   </Button>
+                  
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">
+                        Or
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => guestLoginMutation.mutate()}
+                    disabled={guestLoginMutation.isPending}
+                  >
+                    {guestLoginMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Sign in as Guest
+                  </Button>
                 </form>
               </Form>
             </TabsContent>
@@ -245,6 +293,30 @@ export default function AuthPage() {
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : null}
                     Create Account
+                  </Button>
+                  
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">
+                        Or
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => guestLoginMutation.mutate()}
+                    disabled={guestLoginMutation.isPending}
+                  >
+                    {guestLoginMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Sign in as Guest
                   </Button>
                 </form>
               </Form>
