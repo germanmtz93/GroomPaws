@@ -24,6 +24,7 @@ export default function Home() {
   const [afterImageUrl, setAfterImageUrl] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [isPostingToInstagram, setIsPostingToInstagram] = useState<boolean>(false);
 
   // Caption generation mutation
   const generateCaptionMutation = useMutation({
@@ -113,8 +114,13 @@ export default function Home() {
   // Post directly to Instagram mutation
   const postToInstagramMutation = useMutation({
     mutationFn: async (postId: number) => {
-      const response = await apiRequest('POST', `/api/posts/${postId}/instagram`);
-      return response.json();
+      setIsPostingToInstagram(true);
+      try {
+        const response = await apiRequest('POST', `/api/posts/${postId}/instagram`);
+        return response.json();
+      } finally {
+        setIsPostingToInstagram(false);
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
@@ -272,6 +278,7 @@ export default function Home() {
             onSaveDraft={handleSaveDraft}
             onPostToInstagram={handlePostToInstagram}
             isSaving={savePostMutation.isPending}
+            isPostingToInstagram={isPostingToInstagram}
           />
         </div>
       </div>

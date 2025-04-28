@@ -1,17 +1,28 @@
 import { groomPosts, users, type User, type InsertUser, type GroomPost, type InsertGroomPost, type UpdateGroomPost } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
 
 export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUserLastLogin(id: number): Promise<User | undefined>;
+  updateUserProfile(id: number, userData: Partial<User>): Promise<User | undefined>;
   
   // Groom Post operations
   getGroomPosts(): Promise<GroomPost[]>;
+  getUserGroomPosts(userId: number): Promise<GroomPost[]>;
   getGroomPost(id: number): Promise<GroomPost | undefined>;
   createGroomPost(post: InsertGroomPost): Promise<GroomPost>;
   updateGroomPost(id: number, post: UpdateGroomPost): Promise<GroomPost | undefined>;
   deleteGroomPost(id: number): Promise<boolean>;
+  
+  // Session store for authentication
+  sessionStore: session.Store;
 }
 
 export class MemStorage implements IStorage {
