@@ -19,10 +19,10 @@ export default function Navbar() {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link href="/">
-              <a className="flex-shrink-0 flex items-center">
+              <div className="flex-shrink-0 flex items-center cursor-pointer">
                 <PawPrint className="h-6 w-6 text-primary mr-2" />
                 <span className="font-bold text-xl text-primary">Groom Posts</span>
-              </a>
+              </div>
             </Link>
           </div>
           <div className="flex items-center">
