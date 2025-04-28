@@ -25,83 +25,94 @@ export interface IStorage {
   sessionStore: session.Store;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private posts: Map<number, GroomPost>;
-  private userCurrentId: number;
-  private postCurrentId: number;
+export class DatabaseStorage implements IStorage {
+  sessionStore: session.Store;
 
   constructor() {
-    this.users = new Map();
-    this.posts = new Map();
-    this.userCurrentId = 1;
-    this.postCurrentId = 1;
+    const PostgresSessionStore = connectPg(session);
+    this.sessionStore = new PostgresSessionStore({
+      pool,
+      createTableIfMissing: true,
+    });
   }
 
   // User methods
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.userCurrentId++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
+  async updateUserLastLogin(id: number): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ lastLogin: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  async updateUserProfile(id: number, userData: Partial<User>): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set(userData)
+      .where(eq(users.id, id))
+      .returning();
     return user;
   }
 
   // Groom Post methods
   async getGroomPosts(): Promise<GroomPost[]> {
-    return Array.from(this.posts.values()).sort((a, b) => {
-      // Sort by createdAt in descending order (newest first)
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+    return db.select().from(groomPosts).orderBy(groomPosts.createdAt);
+  }
+
+  async getUserGroomPosts(userId: number): Promise<GroomPost[]> {
+    return db
+      .select()
+      .from(groomPosts)
+      .where(eq(groomPosts.userId, userId))
+      .orderBy(groomPosts.createdAt);
   }
 
   async getGroomPost(id: number): Promise<GroomPost | undefined> {
-    return this.posts.get(id);
+    const [post] = await db.select().from(groomPosts).where(eq(groomPosts.id, id));
+    return post;
   }
 
   async createGroomPost(insertPost: InsertGroomPost): Promise<GroomPost> {
-    const id = this.postCurrentId++;
-    const now = new Date();
-    
-    // Create a GroomPost from the InsertGroomPost
     // Filter out the beforeImage and afterImage fields which are used for base64 data
-    const { beforeImage, afterImage, ...postData } = insertPost;
+    const { beforeImage, afterImage, ...postData } = insertPost as any;
     
-    const post: GroomPost = { 
-      ...postData, 
-      id,
-      createdAt: now,
-      status: insertPost.status || 'draft'
-    };
-    
-    this.posts.set(id, post);
+    const [post] = await db.insert(groomPosts).values(postData).returning();
     return post;
   }
 
   async updateGroomPost(id: number, updateData: UpdateGroomPost): Promise<GroomPost | undefined> {
-    const post = this.posts.get(id);
-    if (!post) return undefined;
-
-    // Filter out the beforeImage and afterImage fields
-    const { beforeImage, afterImage, ...postData } = updateData;
+    // In case beforeImage/afterImage was passed through, remove them
+    const { beforeImage, afterImage, ...postData } = updateData as any;
     
-    const updatedPost: GroomPost = { ...post, ...postData };
-    this.posts.set(id, updatedPost);
-    return updatedPost;
+    const [post] = await db
+      .update(groomPosts)
+      .set(postData)
+      .where(eq(groomPosts.id, id))
+      .returning();
+    return post;
   }
 
   async deleteGroomPost(id: number): Promise<boolean> {
-    return this.posts.delete(id);
+    const result = await db.delete(groomPosts).where(eq(groomPosts.id, id));
+    return result.count > 0;
   }
 }
 
-export const storage = new MemStorage();
+// Create and initialize database with initial schema
+export const storage = new DatabaseStorage();

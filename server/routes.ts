@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { ZodError } from "zod";
@@ -9,6 +9,8 @@ import fs from "fs";
 import { insertGroomPostSchema, updateGroomPostSchema, captionRequestSchema } from "@shared/schema";
 import { generateCaption } from "./lib/openai";
 import { instagramService } from "./lib/instagram";
+import { setupAuth } from "./auth";
+import { User } from "@shared/schema";
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -40,7 +42,18 @@ const upload = multer({
   }
 });
 
+// Middleware to check if user is authenticated
+function isAuthenticated(req: Request, res: Response, next: NextFunction) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.status(401).json({ message: "Authentication required" });
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Set up authentication
+  setupAuth(app);
+  
   // Serve uploaded files
   app.use("/uploads", express.static(uploadsDir));
 
@@ -76,6 +89,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload images for a post
   app.post(
     "/api/upload",
+    isAuthenticated,
     upload.fields([
       { name: "beforeImage", maxCount: 1 },
       { name: "afterImage", maxCount: 1 },
@@ -102,7 +116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Generate caption
-  app.post("/api/generate-caption", async (req, res) => {
+  app.post("/api/generate-caption", isAuthenticated, async (req, res) => {
     try {
       const validData = captionRequestSchema.parse(req.body);
       const caption = await generateCaption(validData);
@@ -117,10 +131,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a new groom post
-  app.post("/api/posts", async (req, res) => {
+  app.post("/api/posts", isAuthenticated, async (req, res) => {
     try {
       const validData = insertGroomPostSchema.parse(req.body);
-      const post = await storage.createGroomPost(validData);
+      
+      // Associate the post with the logged-in user
+      const userId = (req.user as User).id;
+      const postWithUser = {
+        ...validData,
+        userId
+      };
+      
+      const post = await storage.createGroomPost(postWithUser);
       res.status(201).json(post);
     } catch (error) {
       if (error instanceof ZodError) {
