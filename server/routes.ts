@@ -35,7 +35,7 @@ const upload = multer({
     if (file.mimetype.startsWith("image/")) {
       cb(null, true);
     } else {
-      cb(new Error("Only image files are allowed"));
+      cb(new Error("Only image files are allowed"), false);
     }
   }
 });
@@ -210,7 +210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'published',
         instagramPostId: result.id,
         instagramPermalink: result.permalink
-      });
+      } as any); // Type assertion needed until schema update is reflected
 
       res.json({ 
         success: true,

@@ -15,6 +15,7 @@ interface PostPreviewProps {
   onSaveDraft: () => void;
   onPostToInstagram: () => void;
   isSaving: boolean;
+  isPostingToInstagram?: boolean;
 }
 
 export default function PostPreview({
@@ -26,7 +27,8 @@ export default function PostPreview({
   tags,
   onSaveDraft,
   onPostToInstagram,
-  isSaving
+  isSaving,
+  isPostingToInstagram = false
 }: PostPreviewProps) {
   const displayCaption = caption || (
     dogName ? 
@@ -155,9 +157,17 @@ export default function PostPreview({
             <Button 
               className="bg-[#F59E0B] hover:bg-[#D97706]"
               onClick={onPostToInstagram}
-              disabled={isSaving}
+              disabled={isSaving || isPostingToInstagram}
             >
-              <Instagram className="mr-2 h-4 w-4" /> Post to Instagram
+              {isPostingToInstagram ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Posting to Instagram...
+                </>
+              ) : (
+                <>
+                  <Instagram className="mr-2 h-4 w-4" /> Post to Instagram
+                </>
+              )}
             </Button>
           </div>
         </CardContent>

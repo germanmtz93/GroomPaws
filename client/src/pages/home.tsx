@@ -110,13 +110,71 @@ export default function Home() {
     savePostMutation.mutate('draft');
   };
 
+  // Post directly to Instagram mutation
+  const postToInstagramMutation = useMutation({
+    mutationFn: async (postId: number) => {
+      const response = await apiRequest('POST', `/api/posts/${postId}/instagram`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
+      
+      if (data.instagramPermalink) {
+        toast({
+          title: "Posted to Instagram!",
+          description: (
+            <div>
+              Your post is now live on Instagram.{" "}
+              <a 
+                href={data.instagramPermalink} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="underline text-primary"
+              >
+                View on Instagram
+              </a>
+            </div>
+          ),
+        });
+      } else {
+        toast({
+          title: "Posted to Instagram!",
+          description: "Your post has been published to Instagram successfully.",
+        });
+      }
+      
+      // Clear the form after successful posting
+      clearForm();
+    },
+    onError: (error: any) => {
+      if (error.message && error.message.includes('Instagram integration not configured')) {
+        toast({
+          title: "Instagram credentials needed",
+          description: "Please provide your Instagram API credentials in the environment settings.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to post to Instagram. Please try again.",
+          variant: "destructive",
+        });
+      }
+    }
+  });
+
   const handlePostToInstagram = () => {
     if (!validateForm()) return;
-    toast({
-      title: "Instagram Integration",
-      description: "Direct posting to Instagram will be available in a future update.",
+    
+    // First save the post, then post to Instagram
+    savePostMutation.mutate('draft', {
+      onSuccess: (data) => {
+        // After saving, post to Instagram with the post ID
+        if (data && data.id) {
+          postToInstagramMutation.mutate(data.id);
+        }
+      }
     });
-    savePostMutation.mutate('published');
   };
 
   const validateForm = () => {
