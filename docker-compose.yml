@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FACEBOOK_APP_ID=${FACEBOOK_APP_ID}
+      - FACEBOOK_APP_SECRET=${FACEBOOK_APP_SECRET}
+      - INSTAGRAM_LONG_LIVED_ACCESS_TOKEN=${INSTAGRAM_LONG_LIVED_ACCESS_TOKEN}
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped

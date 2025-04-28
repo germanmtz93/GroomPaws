@@ -8,6 +8,7 @@ import path from "path";
 import fs from "fs";
 import { insertGroomPostSchema, updateGroomPostSchema, captionRequestSchema } from "@shared/schema";
 import { generateCaption } from "./lib/openai";
+import { instagramService } from "./lib/instagram";
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -171,6 +172,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Error deleting post" });
+    }
+  });
+
+  // Post to Instagram
+  app.post("/api/posts/:id/instagram", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+
+      const post = await storage.getGroomPost(id);
+      if (!post) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+
+      // Check if Instagram service is initialized
+      if (!instagramService.isInitialized()) {
+        return res.status(400).json({ 
+          message: "Instagram integration not configured", 
+          requiresCredentials: true 
+        });
+      }
+
+      // Post to Instagram
+      const result = await instagramService.postToInstagram(post);
+      
+      if (!result.success) {
+        return res.status(500).json({ 
+          message: result.error || "Failed to post to Instagram"
+        });
+      }
+
+      // Update the post with instagram post ID and status
+      const updatedPost = await storage.updateGroomPost(id, { 
+        status: 'published',
+        instagramPostId: result.id,
+        instagramPermalink: result.permalink
+      });
+
+      res.json({ 
+        success: true,
+        post: updatedPost,
+        instagramPostId: result.id,
+        instagramPermalink: result.permalink
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        message: `Error posting to Instagram: ${(error as Error).message}`
+      });
     }
   });
 
